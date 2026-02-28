@@ -13,6 +13,14 @@ Tex is a CLI-based orchestrator that interprets your intent in plain English, ma
 
 ---
 
+## Screenshots
+
+![Tex help screen](assets/tex-help.png)
+![Chat mode](assets/tex-chat.png)
+![Task execution](assets/tex-ask.png)
+
+---
+
 ## Philosophy
 
 - **Local-first.** No cloud. Runs entirely on your machine via [Ollama](https://ollama.com).
