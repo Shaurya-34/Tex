@@ -104,19 +104,101 @@ def get_system_info() -> tuple[bool, str]:
 
 
 def list_installed_packages(filter: str = "") -> tuple[bool, str]:
-    """List installed packages via dnf, optionally filtered by name."""
-    result = subprocess.run(
-        ["dnf", "list", "installed"],
-        capture_output=True, text=True,
-    )
-    if result.returncode != 0:
-        return False, result.stderr.strip()
+    """
+    Search for installed software across ALL package sources:
+      - dnf / RPM  (system packages)
+      - Flatpak    (GNOME Software, Flathub apps like Blender, Steam)
+      - Snap       (snapd packages)
+      - AppImage   (portable apps in ~/Applications or home dir)
+      - Manual     (binaries in /opt, /usr/local/bin)
+    """
+    sections: list[str] = []
+    found_anything = False
 
-    lines = result.stdout.splitlines()
-    if filter:
-        lines = [l for l in lines if filter.lower() in l.lower()]
+    # ── 1. dnf / RPM ─────────────────────────────────────────────────────
+    if shutil.which("dnf"):
+        result = subprocess.run(
+            ["dnf", "list", "installed"],
+            capture_output=True, text=True,
+        )
+        if result.returncode == 0:
+            lines = result.stdout.splitlines()
+            if filter:
+                lines = [l for l in lines if filter.lower() in l.lower()]
+            # Skip the header line ("Installed Packages")
+            lines = [l for l in lines if not l.startswith("Installed")]
+            if lines:
+                found_anything = True
+                sections.append(f"[dnf/RPM] ({len(lines)} match(es))")
+                sections.extend(f"  {l}" for l in lines[:40])
 
-    if not lines:
-        return True, f"No installed packages matching '{filter}'"
+    # ── 2. Flatpak ───────────────────────────────────────────────────────
+    if shutil.which("flatpak"):
+        result = subprocess.run(
+            ["flatpak", "list", "--columns=application,name,version"],
+            capture_output=True, text=True,
+        )
+        if result.returncode == 0:
+            lines = result.stdout.splitlines()
+            if filter:
+                lines = [l for l in lines if filter.lower() in l.lower()]
+            if lines:
+                found_anything = True
+                sections.append(f"\n[Flatpak] ({len(lines)} match(es))")
+                sections.extend(f"  {l}" for l in lines[:40])
 
-    return True, "\n".join(lines[:80])  # cap output to avoid flooding terminal
+    # ── 3. Snap ──────────────────────────────────────────────────────────
+    if shutil.which("snap"):
+        result = subprocess.run(
+            ["snap", "list"],
+            capture_output=True, text=True,
+        )
+        if result.returncode == 0:
+            lines = result.stdout.splitlines()
+            if filter:
+                lines = [l for l in lines if filter.lower() in l.lower()]
+            # Skip header
+            lines = [l for l in lines if not l.startswith("Name")]
+            if lines:
+                found_anything = True
+                sections.append(f"\n[Snap] ({len(lines)} match(es))")
+                sections.extend(f"  {l}" for l in lines[:40])
+
+    # ── 4. AppImage ──────────────────────────────────────────────────────
+    appimage_dirs = [
+        Path.home() / "Applications",
+        Path.home(),
+        Path("/opt"),
+    ]
+    appimages: list[str] = []
+    for d in appimage_dirs:
+        if d.exists():
+            for f in d.iterdir():
+                if f.suffix.lower() == ".appimage":
+                    if not filter or filter.lower() in f.name.lower():
+                        appimages.append(str(f))
+
+    if appimages:
+        found_anything = True
+        sections.append(f"\n[AppImage] ({len(appimages)} found)")
+        sections.extend(f"  {a}" for a in appimages[:20])
+
+    # ── 5. Manual installs in /opt ────────────────────────────────────────
+    opt = Path("/opt")
+    if opt.exists():
+        opt_entries = [
+            e.name for e in opt.iterdir()
+            if not filter or filter.lower() in e.name.lower()
+        ]
+        if opt_entries:
+            found_anything = True
+            sections.append(f"\n[/opt — manual installs] ({len(opt_entries)} found)")
+            sections.extend(f"  {e}" for e in sorted(opt_entries)[:20])
+
+    # ── Summary ───────────────────────────────────────────────────────────
+    if not found_anything:
+        msg = f"No installed software found matching '{filter}'" if filter else "No installed software found."
+        return True, msg
+
+    header = f"Installed software search{f\" for '{filter}'\" if filter else ''}:\n"
+    return True, header + "\n".join(sections)
