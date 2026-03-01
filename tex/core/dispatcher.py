@@ -83,12 +83,3 @@ def dispatch(tool_call: ToolCall) -> tuple[bool, str]:
         case "chat_response":
             # Pass the message through — executor renders it as a chat bubble
             return True, args.get("message", "")
-        
-        # ── System information ────────────────────────────────────────
-        case "get_system_info":
-            return sysinfo.get_system_info()
-
-        case "list_installed_packages":
-            return sysinfo.list_installed_packages(
-                filter=args.get("filter", "")
-            )
