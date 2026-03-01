@@ -43,7 +43,7 @@ ollama pull llama3.2
 ### 2. Install Tex
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/tex.git
+git clone https://github.com/Shaurya-34/Tex.git
 cd tex
 pip install -e .
 ```
