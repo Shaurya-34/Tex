@@ -1,8 +1,9 @@
 """Process inspection tools."""
 
 from __future__ import annotations
-import subprocess
+import os
 import signal
+import subprocess
 
 
 def list_processes(filter: str = "") -> tuple[bool, str]:
@@ -50,20 +51,43 @@ def list_processes(filter: str = "") -> tuple[bool, str]:
 
 
 def kill_process(pid: int | str) -> tuple[bool, str]:
-    """Send SIGTERM to a process by PID."""
+    """Send SIGTERM to a process by PID.
+
+    SECURITY: PIDs 1–99 are reserved for the kernel and core system daemons
+    (systemd is PID 1, kernel threads occupy low PIDs).  Tex will never send
+    a signal to these processes regardless of what the LLM outputs.
+    """
     try:
         pid = int(pid)
     except ValueError:
-        return False, f"Invalid PID: {pid}"
+        return False, f"Invalid PID: {pid} — must be an integer."
+
+    # Block negative PIDs and PID 0 — these have special OS semantics:
+    # negative PID → signal sent to the entire process group (dangerous)
+    # PID 0        → signal sent to all processes in the calling process group
+    if pid <= 0:
+        return False, (
+            f"PID {pid} is not a valid target. Negative PIDs and PID 0 have "
+            f"special OS semantics (process group signals) and are blocked by Tex."
+        )
+
+    # Block signals to privileged system PIDs (systemd is 1, kernel threads
+    # occupy the low range — nothing below 100 is a safe user target)
+    _MIN_SAFE_PID = 100
+    if pid < _MIN_SAFE_PID:
+        return False, (
+            f"PID {pid} is in the reserved system range (1–99). "
+            f"Tex will not send signals to system or kernel processes."
+        )
 
     try:
-        import os
         os.kill(pid, signal.SIGTERM)
         return True, f"Sent SIGTERM to PID {pid}"
     except ProcessLookupError:
         return False, f"No process with PID {pid}"
     except PermissionError:
-        return False, f"Permission denied — try with sudo or check ownership of PID {pid}"
+        return False, f"Permission denied — you do not own PID {pid}. Try running with sudo if this is your process."
+
 
 
 def read_journal(
