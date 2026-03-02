@@ -15,6 +15,9 @@ class Config:
     max_tokens: int = int(os.getenv("TEX_MAX_TOKENS", "512"))
     log_file: str = os.getenv("TEX_LOG_FILE", "logs/tex.log")
     require_confirm: bool = os.getenv("TEX_CONFIRM", "true").lower() == "true"
+    # Maximum character length for a general argument value from the LLM.
+    # Raise this if you use a model that produces longer structured outputs.
+    max_arg_value_len: int = int(os.getenv("TEX_MAX_ARG_LEN", "1024"))
 
 
 config = Config()

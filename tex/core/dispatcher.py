@@ -83,3 +83,13 @@ def dispatch(tool_call: ToolCall) -> tuple[bool, str]:
         case "chat_response":
             # Pass the message through — executor renders it as a chat bubble
             return True, args.get("message", "")
+
+        # ── Safety net ─────────────────────────────────────────────────
+        case _:
+            # This should never be reached — the validator whitelists tools
+            # before dispatch. If it is reached, something bypassed the
+            # validator, which is a hard security violation.
+            return False, (
+                f"SECURITY: tool '{name}' reached the dispatcher but is not "
+                f"handled. This is a bug — the validator should have blocked this."
+            )
