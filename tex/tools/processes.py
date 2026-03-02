@@ -86,7 +86,7 @@ def kill_process(pid: int | str) -> tuple[bool, str]:
     except ProcessLookupError:
         return False, f"No process with PID {pid}"
     except PermissionError:
-        return False, f"Permission denied — you do not own PID {pid}. Try running with sudo if this is your process."
+        return False, f"Permission denied — cannot send signal to PID {pid} (process is owned by another user or requires elevated privileges)."
 
 
 

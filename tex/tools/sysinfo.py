@@ -165,18 +165,23 @@ def list_installed_packages(filter: str = "") -> tuple[bool, str]:
                 sections.extend(f"  {l}" for l in lines[:40])
 
     # ── 4. AppImage ──────────────────────────────────────────────────────
+    # Note: /opt is intentionally excluded here — it is scanned separately
+    # in section 5 (manual installs). Including it in both would produce
+    # duplicate entries for AppImages stored in /opt.
     appimage_dirs = [
         Path.home() / "Applications",
         Path.home(),
-        Path("/opt"),
     ]
     appimages: list[str] = []
     for d in appimage_dirs:
         if d.exists():
-            for f in d.iterdir():
-                if f.suffix.lower() == ".appimage":
-                    if not filter or filter.lower() in f.name.lower():
-                        appimages.append(str(f))
+            try:
+                for f in d.iterdir():
+                    if f.suffix.lower() == ".appimage":
+                        if not filter or filter.lower() in f.name.lower():
+                            appimages.append(str(f))
+            except PermissionError:
+                pass  # Skip directories we cannot read
 
     if appimages:
         found_anything = True
@@ -186,10 +191,14 @@ def list_installed_packages(filter: str = "") -> tuple[bool, str]:
     # ── 5. Manual installs in /opt ────────────────────────────────────────
     opt = Path("/opt")
     if opt.exists():
-        opt_entries = [
-            e.name for e in opt.iterdir()
-            if not filter or filter.lower() in e.name.lower()
-        ]
+        try:
+            opt_entries = [
+                e.name for e in opt.iterdir()
+                if (not filter or filter.lower() in e.name.lower())
+                and not e.suffix.lower() == ".appimage"  # already shown in AppImage section
+            ]
+        except PermissionError:
+            opt_entries = []
         if opt_entries:
             found_anything = True
             sections.append(f"\n[/opt — manual installs] ({len(opt_entries)} found)")

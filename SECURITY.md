@@ -49,7 +49,13 @@ operation. It enforces three rules:
    on `~` directly.
 3. A hardcoded blocklist of system prefixes (`/etc`, `/usr`, `/bin`, `/proc`,
    `/sys`, `/dev`, `/boot`, `/root`, `/var`, `/run`, `/snap`, `/opt`) provides
-   a belt-and-suspenders second check.
+   a belt-and-suspenders second check. **The blocklist is still active** — what
+   changed in a subsequent fix (CodeRabbit review) was the *matching method*:
+   the original `str.startswith()` string comparison was replaced with
+   `Path.is_relative_to()` for correct path containment semantics. Additionally,
+   the check is now skipped when `_HOME` itself lives inside a blocked prefix
+   (e.g. Fedora Silverblue users with homes under `/var/home`) since Rule 1
+   already handles containment in those environments.
 
 Path traversal strings like `../../etc/passwd` are neutralised because
 `Path.resolve()` is called before the containment check, producing the real

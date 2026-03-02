@@ -44,7 +44,7 @@ ollama pull llama3.2
 
 ```bash
 git clone https://github.com/Shaurya-34/Tex.git
-cd tex
+cd Tex
 pip install -e .
 ```
 
