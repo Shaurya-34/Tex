@@ -44,9 +44,10 @@ def _header() -> None:
 def main(ctx: typer.Context) -> None:
     setup_logger()
     if ctx.invoked_subcommand is None:
-        _header()
-        console.print(ctx.get_help())
-        raise typer.Exit()
+        # No subcommand given — drop into interactive session.
+        # 'tex' alone is the main daily-driver interface.
+        # Use 'tex --help' to see all subcommands.
+        chat()
 
 
 # ── Commands ──────────────────────────────────────────────────────────────────
@@ -216,11 +217,13 @@ def chat() -> None:
     warmup_ollama()  # start loading model weights in background immediately
     reset_history()
 
+    _header()
     console.print(
         Panel(
-            "[bold]Chat mode[/bold] — ask anything or give me a task.\n"
-            "[dim]Mix questions and commands freely. I remember context.\n"
-            "Type [bold]exit[/bold] or [bold]quit[/bold] to end the session.[/dim]",
+            "[bold]Interactive mode[/bold] — ask anything or give me a task.\n"
+            "[dim]Mix questions and commands freely. I remember context across turns.\n"
+            "Type [bold]exit[/bold] or [bold]quit[/bold] to end the session.\n"
+            "Run [bold]tex --help[/bold] in another terminal to see all subcommands.[/dim]",
             border_style="cyan",
             padding=(1, 2),
         )

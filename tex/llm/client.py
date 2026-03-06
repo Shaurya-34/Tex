@@ -148,12 +148,15 @@ def stream_chat_response(user_input: str) -> str:
     full_response = ""
     console.print()  # newline before response
 
-    # Stream tokens live — user sees output immediately
+    # Stream tokens live — user sees output immediately.
+    # transient=True clears all intermediate renders from the scrollback
+    # buffer when streaming ends, preventing ghost panel duplicates on scroll.
     with Live(
         Panel("", title="[bold cyan]Tex[/bold cyan]", border_style="cyan", padding=(1, 2)),
         console=console,
         refresh_per_second=15,
         vertical_overflow="visible",
+        transient=True,
     ) as live:
         for chunk in ollama.chat(
             model=config.model,
@@ -176,6 +179,15 @@ def stream_chat_response(user_input: str) -> str:
                 )
             )
 
+    # Print the final response once, permanently, so scrollback shows it cleanly
+    console.print(
+        Panel(
+            Markdown(full_response),
+            title="[bold cyan]Tex[/bold cyan]",
+            border_style="cyan",
+            padding=(1, 2),
+        )
+    )
     console.print()  # newline after panel
 
     # Save assistant turn to history
