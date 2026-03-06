@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 import json
+import threading
 import ollama
 from rich.console import Console
 from rich.markdown import Markdown
@@ -18,6 +19,42 @@ _history: list[dict] = []
 
 # Max turns to keep in history to avoid context bloat slowing things down
 _MAX_HISTORY_TURNS = 10
+
+# Background warmup thread handle — kept so we can optionally join it
+_warmup_thread: threading.Thread | None = None
+
+
+def warmup_ollama() -> None:
+    """
+    Fire a minimal 1-token request to Ollama in a daemon background thread.
+
+    Ollama loads model weights on the FIRST request, which causes the initial
+    'Thinking...' delay. By sending a throwaway ping immediately when Tex
+    starts, the model loads while Python is still printing output or waiting
+    for user input. The real query then hits a warm server.
+
+    The thread is a daemon — it dies automatically when the process exits, so
+    it never blocks shutdown even if Ollama is slow or unreachable.
+    Call this once at the start of 'ask' and 'chat' commands.
+    """
+    global _warmup_thread
+
+    def _ping() -> None:
+        try:
+            ollama.chat(
+                model=config.model,
+                messages=[{"role": "user", "content": "hi"}],
+                options={
+                    "num_predict": 1,   # generate exactly 1 token — minimal work
+                    "num_ctx": 512,     # tiny context for the ping
+                    "temperature": 0,
+                },
+            )
+        except Exception:
+            pass  # Silently ignore — warmup is best-effort
+
+    _warmup_thread = threading.Thread(target=_ping, daemon=True, name="tex-warmup")
+    _warmup_thread.start()
 
 
 def reset_history() -> None:

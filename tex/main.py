@@ -11,7 +11,7 @@ from tex import __version__
 from tex.core.logger import setup_logger, log_error
 from tex.core.validator import validate
 from tex.core.executor import execute
-from tex.llm.client import query_llm, reset_history, stream_chat_response
+from tex.llm.client import query_llm, reset_history, stream_chat_response, warmup_ollama
 from tex.tools.registry import all_tool_names, TOOL_REGISTRY
 from tex.config import config
 
@@ -64,6 +64,7 @@ def ask(
     ),
 ) -> None:
     """Ask Tex to perform a Linux task in plain English."""
+    warmup_ollama()  # start loading model weights in background immediately
 
     # Override config for this run if flags are set
     if no_confirm:
@@ -212,6 +213,7 @@ def chat() -> None:
     Tex remembers context across turns in this session.
     Type 'exit' or 'quit' to end the session.
     """
+    warmup_ollama()  # start loading model weights in background immediately
     reset_history()
 
     console.print(
