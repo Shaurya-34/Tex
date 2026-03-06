@@ -133,6 +133,52 @@ TOOL_REGISTRY: dict[str, ToolDefinition] = {
         parameters=[],
         optional=["filter"],
     ),
+
+    # Service management
+    "service_status": ToolDefinition(
+        name="service_status",
+        description="Show the status of a systemd service (active, inactive, failed, logs)",
+        parameters=["name"],
+    ),
+    "start_service": ToolDefinition(
+        name="start_service",
+        description="Start a systemd service",
+        parameters=["name"],
+        needs_sudo=True,
+    ),
+    "stop_service": ToolDefinition(
+        name="stop_service",
+        description="Stop a running systemd service",
+        parameters=["name"],
+        destructive=True,
+        needs_sudo=True,
+    ),
+    "restart_service": ToolDefinition(
+        name="restart_service",
+        description="Restart a systemd service (stop then start)",
+        parameters=["name"],
+        destructive=True,
+        needs_sudo=True,
+    ),
+    "enable_service": ToolDefinition(
+        name="enable_service",
+        description="Enable a service to start automatically on boot",
+        parameters=["name"],
+        needs_sudo=True,
+    ),
+    "disable_service": ToolDefinition(
+        name="disable_service",
+        description="Disable a service so it does not start on boot",
+        parameters=["name"],
+        destructive=True,
+        needs_sudo=True,
+    ),
+    "list_services": ToolDefinition(
+        name="list_services",
+        description="List systemd services, optionally filtered by name or state (running/stopped/enabled/failed)",
+        parameters=[],
+        optional=["filter", "state"],
+    ),
 }
     
 
@@ -145,16 +191,33 @@ def all_tool_names() -> list[str]:
 
 
 def tools_as_json_schema() -> str:
-    """Serialize all tools for injection into the LLM system prompt."""
-    import json
-    schema = []
+    """Serialize all tools for injection into the LLM system prompt.
+
+    Uses a compact one-liner format instead of full JSON to minimise prompt
+    token count. Fewer tokens in the system prompt = faster model prefill =
+    shorter 'Thinking...' wait time.
+
+    Format per tool:
+      tool_name(req_arg*, opt_arg) — description [flags]
+    Flags: sudo | destructive | no-confirm
+    * = required argument
+    """
+    lines = []
     for t in TOOL_REGISTRY.values():
-        schema.append({
-            "name": t.name,
-            "description": t.description,
-            "required_args": t.parameters,
-            "optional_args": t.optional,
-            "destructive": t.destructive,
-            "needs_sudo": t.needs_sudo,
-        })
-    return json.dumps(schema, indent=2)
+        # Build argument list: required args marked with *, optional unmarked
+        args = [f"{a}*" for a in t.parameters] + list(t.optional)
+        arg_str = ", ".join(args) if args else ""
+
+        # Build flag list
+        flags = []
+        if t.needs_sudo:
+            flags.append("sudo")
+        if t.destructive:
+            flags.append("destructive")
+        if t.is_conversational:
+            flags.append("no-confirm")
+        flag_str = f" [{', '.join(flags)}]" if flags else ""
+
+        lines.append(f"  {t.name}({arg_str}) — {t.description}{flag_str}")
+
+    return "\n".join(lines)

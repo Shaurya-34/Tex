@@ -57,6 +57,7 @@ def query_llm(user_input: str, maintain_history: bool = False) -> dict:
             options={
                 "temperature": config.temperature,
                 "num_predict": config.max_tokens,
+                "num_ctx": config.num_ctx,
             },
         )
 
@@ -124,6 +125,7 @@ def stream_chat_response(user_input: str) -> str:
             options={
                 "temperature": config.temperature,
                 "num_predict": config.max_tokens,
+                "num_ctx": config.num_ctx,
             },
         ):
             token = chunk["message"]["content"]
