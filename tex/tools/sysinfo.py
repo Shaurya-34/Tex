@@ -209,5 +209,6 @@ def list_installed_packages(filter: str = "") -> tuple[bool, str]:
         msg = f"No installed software found matching '{filter}'" if filter else "No installed software found."
         return True, msg
 
-    header = f"Installed software search{f\" for '{filter}'\" if filter else ''}:\n"
+    suffix = f" for '{filter}'" if filter else ""
+    header = f"Installed software search{suffix}:\n"
     return True, header + "\n".join(sections)

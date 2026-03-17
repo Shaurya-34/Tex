@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 from tex.tools.registry import ToolCall
-from tex.tools import packages, file_ops, processes, sysinfo
+from tex.tools import packages, file_ops, processes, sysinfo, services
 
 
 def dispatch(tool_call: ToolCall) -> tuple[bool, str]:
@@ -77,6 +77,31 @@ def dispatch(tool_call: ToolCall) -> tuple[bool, str]:
         case "list_installed_packages":
             return sysinfo.list_installed_packages(
                 filter=args.get("filter", "")
+            )
+
+        # ── Service management ────────────────────────────────────────
+        case "service_status":
+            return services.service_status(args["name"])
+
+        case "start_service":
+            return services.start_service(args["name"])
+
+        case "stop_service":
+            return services.stop_service(args["name"])
+
+        case "restart_service":
+            return services.restart_service(args["name"])
+
+        case "enable_service":
+            return services.enable_service(args["name"])
+
+        case "disable_service":
+            return services.disable_service(args["name"])
+
+        case "list_services":
+            return services.list_services(
+                filter=args.get("filter", ""),
+                state=args.get("state", ""),
             )
 
         # ── Conversation ───────────────────────────────────────────────

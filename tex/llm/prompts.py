@@ -70,6 +70,24 @@ User: do I have enough RAM to run a VM?
 User: is ffmpeg installed?
 → {"tool": "list_installed_packages", "arguments": {"filter": "ffmpeg"}, "explanation": "Check if ffmpeg is installed.", "requires_sudo": false}
 
+User: is nginx running?
+→ {"tool": "service_status", "arguments": {"name": "nginx"}, "explanation": "Check the status of the nginx service.", "requires_sudo": false}
+
+User: start postgresql
+→ {"tool": "start_service", "arguments": {"name": "postgresql"}, "explanation": "Start the postgresql service.", "requires_sudo": true}
+
+User: restart nginx
+→ {"tool": "restart_service", "arguments": {"name": "nginx"}, "explanation": "Restart the nginx service.", "requires_sudo": true}
+
+User: make sshd start on boot
+→ {"tool": "enable_service", "arguments": {"name": "sshd"}, "explanation": "Enable sshd to start automatically at boot.", "requires_sudo": true}
+
+User: show me all failed services
+→ {"tool": "list_services", "arguments": {"state": "failed"}, "explanation": "List all systemd services that have failed.", "requires_sudo": false}
+
+User: what services are running
+→ {"tool": "list_services", "arguments": {"state": "running"}, "explanation": "List all currently running systemd services.", "requires_sudo": false}
+
 Remember: ONLY JSON. No other text before or after.
 
 
