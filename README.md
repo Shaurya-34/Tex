@@ -239,6 +239,13 @@ you › exit
 
 ---
 
+## Test Suite
+
+*   **Security Guards**: Validates all paths, PIDs, and hostnames before execution.
+*   **Comprehensive Test Suite**: 120+ unit tests covering security, validation, and tool logic.
+
+## Getting Started
+
 ## Safety Rules
 
 1. No raw shell execution from model output. Ever.
