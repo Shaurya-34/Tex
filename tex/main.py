@@ -11,7 +11,7 @@ from tex import __version__
 from tex.core.logger import setup_logger, log_error
 from tex.core.validator import validate
 from tex.core.executor import execute
-from tex.llm.client import query_llm, reset_history, stream_chat_response, warmup_ollama
+from tex.llm.client import query_llm, reset_history, warmup_ollama, inject_tool_result
 from tex.tools.registry import all_tool_names, TOOL_REGISTRY
 from tex.config import config
 
@@ -103,7 +103,7 @@ def ask(
         show_plan(result.tool_call, result.tool_def)
         console.print("[yellow]Dry run — nothing executed.[/yellow]\n")
     else:
-        execute(result.tool_call, result.tool_def)
+        execute(result.tool_call, result.tool_def, original_query=query)
 
 
 @app.command()
@@ -244,15 +244,11 @@ def chat() -> None:
             console.print("[dim]Session ended.[/dim]")
             break
 
-        # ── Route: chat question vs system task ──────────────────────────
-        # Heuristic: if input looks like a question or conversational message,
-        # stream directly for instant response. Otherwise go through the full
-        # LLM→JSON→validate→execute pipeline.
-        if _looks_like_chat(user_input):
-            stream_chat_response(user_input)
-            continue
+        # ── Always route through the LLM ─────────────────────────────────
+        # The LLM decides: task (any tool) vs conversation (chat_response).
+        # No keyword heuristic — the model is smarter than startswith() checks.
 
-        # 1. LLM (with history) — full JSON task pipeline
+        # 1. LLM (with history) — decides tool or chat_response
         try:
             raw = query_llm(user_input, maintain_history=True)
         except ValueError as e:
@@ -293,34 +289,14 @@ def chat() -> None:
             continue
 
         # 3. Execute task
-        execute(result.tool_call, result.tool_def)
+        execute(result.tool_call, result.tool_def, original_query=user_input)
+        # Inject tool result into history so the LLM can reference it next turn.
+        # e.g. "restart it" after "is nginx running?" resolves correctly.
+        inject_tool_result(
+            tool=result.tool_call.tool,
+            arguments=result.tool_call.arguments,
+        )
         console.print()
-
-
-def _looks_like_chat(text: str) -> bool:
-    """
-    Fast heuristic — returns True if the input looks conversational rather
-    than a system command/task. Errs on the side of using the task pipeline
-    when ambiguous (false negatives are fine; false positives would skip tasks).
-    """
-    t = text.lower().strip()
-
-    # Question starters
-    if t.startswith(("what ", "why ", "how ", "when ", "who ", "where ",
-                      "is ", "are ", "can ", "could ", "do ", "does ",
-                      "should ", "would ", "tell me", "explain ",
-                      "what's ", "what is ", "what are ")):
-        return True
-
-    # Contains a question mark and no action verbs at the start
-    _task_verbs = {"install", "remove", "uninstall", "delete", "kill",
-                   "copy", "move", "list", "read", "show", "open", "run",
-                   "start", "stop", "search", "find", "check"}
-    first_word = t.split()[0] if t.split() else ""
-    if "?" in t and first_word not in _task_verbs:
-        return True
-
-    return False
 
 
 if __name__ == "__main__":

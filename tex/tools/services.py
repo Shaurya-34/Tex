@@ -153,3 +153,46 @@ def list_services(filter: str = "", state: str = "") -> tuple[bool, str]:
         return True, msg
 
     return True, "\n".join(lines[:40])  # cap at 40 rows
+
+
+def analyze_boot() -> tuple[bool, str]:
+    """
+    Analyse system boot time using systemd-analyze.
+
+    Returns:
+        - Overall boot time breakdown (firmware + loader + kernel + userspace)
+        - Per-service startup times sorted slowest first (top 30)
+    """
+    sections: list[str] = []
+
+    # Overall time split
+    r = subprocess.run(
+        ["systemd-analyze"],
+        capture_output=True,
+        text=True,
+    )
+    if r.returncode == 0 and r.stdout.strip():
+        sections.append("Boot time summary:\n" + r.stdout.strip())
+    elif r.returncode != 0:
+        stderr = r.stderr.strip()
+        return False, (
+            f"systemd-analyze failed: {stderr}\n"
+            f"Note: systemd-analyze may not be available in container environments."
+        )
+
+    # Per-service breakdown — cap at top 30 slowest to stay within context
+    r = subprocess.run(
+        ["systemd-analyze", "blame", "--no-pager"],
+        capture_output=True,
+        text=True,
+    )
+    if r.returncode == 0 and r.stdout.strip():
+        lines = r.stdout.strip().splitlines()[:30]
+        sections.append(
+            "Services by startup time (slowest first, top 30):\n" + "\n".join(lines)
+        )
+
+    if not sections:
+        return False, "systemd-analyze is not available on this system."
+
+    return True, "\n\n".join(sections)

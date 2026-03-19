@@ -9,7 +9,13 @@ from rich.markdown import Markdown
 from rich.panel import Panel
 from rich.live import Live
 from tex.config import config
-from tex.llm.prompts import SYSTEM_PROMPT, CHAT_SYSTEM_PROMPT, build_user_message
+from tex.llm.prompts import (
+    SYSTEM_PROMPT,
+    CHAT_SYSTEM_PROMPT,
+    INTERPRET_SYSTEM_PROMPT,
+    build_user_message,
+    build_interpret_message,
+)
 
 console = Console()
 
@@ -45,8 +51,8 @@ def warmup_ollama() -> None:
                 model=config.model,
                 messages=[{"role": "user", "content": "hi"}],
                 options={
-                    "num_predict": 1,   # generate exactly 1 token — minimal work
-                    "num_ctx": 512,     # tiny context for the ping
+                    "num_predict": 1,
+                    "num_ctx": 512,
                     "temperature": 0,
                 },
             )
@@ -60,6 +66,27 @@ def warmup_ollama() -> None:
 def reset_history() -> None:
     """Clear conversation history (call at start of a new session)."""
     _history.clear()
+
+
+def inject_tool_result(tool: str, arguments: dict) -> None:
+    """
+    Inject a brief tool execution summary into conversation history.
+
+    Called after a tool runs successfully so the LLM knows what happened
+    in the previous turn. Enables follow-up references:
+      - "restart it"  → after "is nginx running?" → knows target is nginx
+      - "why did it fail?" → knows which tool ran and with what args
+      - "show me more logs" → knows it previously read journal for a unit
+
+    Uses the 'user' role with a [SYSTEM] prefix so the model treats it as
+    context rather than a new request.  Trimmed to avoid context bloat.
+    """
+    # Build a compact one-line summary: tool(arg1=val1, arg2=val2)
+    arg_parts = ", ".join(f"{k}={repr(v)}" for k, v in arguments.items())
+    summary = f"[SYSTEM: tool executed — {tool}({arg_parts})]"
+    _history.append({"role": "user", "content": summary})
+    # Immediately balance with a neutral assistant ack so history stays paired
+    _history.append({"role": "assistant", "content": "Understood."})
 
 
 def query_llm(user_input: str, maintain_history: bool = False) -> dict:
@@ -193,3 +220,69 @@ def stream_chat_response(user_input: str) -> str:
     # Save assistant turn to history
     _history.append({"role": "assistant", "content": full_response})
     return full_response
+
+
+def interpret_output(original_query: str, tool_name: str, tool_output: str) -> None:
+    """
+    Second-pass LLM call: stream an interpretation of tool output directly to
+    the terminal in response to the user's original question.
+
+    Uses a lightweight system prompt (no tool schema) — the only job here is
+    to analyse the data and give a human-readable answer.  Streams with
+    transient=True so the scrollback buffer only shows the final panel.
+    """
+    messages = [
+        {"role": "system", "content": INTERPRET_SYSTEM_PROMPT},
+        {"role": "user", "content": build_interpret_message(
+            original_query, tool_name, tool_output
+        )},
+    ]
+
+    full_response = ""
+
+    with Live(
+        Panel("", title="[bold cyan]Tex says[/bold cyan]", border_style="cyan", padding=(1, 2)),
+        console=console,
+        refresh_per_second=15,
+        vertical_overflow="visible",
+        transient=True,
+    ) as live:
+        try:
+            for chunk in ollama.chat(
+                model=config.model,
+                messages=messages,
+                stream=True,
+                options={
+                    "temperature": 0.3,        # slightly higher than task mode for fluency
+                    "num_predict": config.max_tokens * 4,  # interpretations can be longer
+                    "num_ctx": config.num_ctx,
+                },
+            ):
+                token = chunk["message"]["content"]
+                full_response += token
+                live.update(
+                    Panel(
+                        Markdown(full_response),
+                        title="[bold cyan]Tex says[/bold cyan]",
+                        border_style="cyan",
+                        padding=(1, 2),
+                    )
+                )
+        except Exception as e:
+            # Interpretation is best-effort — never crash the main flow
+            live.update(Panel(f"[dim](interpretation unavailable: {e})[/dim]",
+                              title="[bold cyan]Tex says[/bold cyan]",
+                              border_style="cyan", padding=(1, 2)))
+            return
+
+    # Print final panel permanently
+    if full_response:
+        console.print(
+            Panel(
+                Markdown(full_response),
+                title="[bold cyan]Tex says[/bold cyan]",
+                border_style="cyan",
+                padding=(1, 2),
+            )
+        )
+    console.print()

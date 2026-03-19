@@ -10,6 +10,7 @@ from tex.tools.registry import ToolCall, ToolDefinition
 from tex.core.dispatcher import dispatch
 from tex.core.logger import log_action, log_rejection
 from tex.config import config
+from tex.llm.client import interpret_output
 
 console = Console()
 
@@ -56,11 +57,12 @@ def ask_confirmation(destructive: bool = False) -> bool:
         return typer.confirm("Execute this plan?", default=True)
 
 
-def execute(tool_call: ToolCall, tool_def: ToolDefinition) -> None:
-    """Show plan → confirm → run → log result.
+def execute(tool_call: ToolCall, tool_def: ToolDefinition, original_query: str = "") -> None:
+    """Show plan → confirm → run → log result → optionally interpret.
 
-    For conversational tools (chat_response), skip the plan panel and
-    confirmation — just dispatch and render the message directly.
+    original_query is the user's raw input string, used by the two-pass
+    interpretation path to give the LLM context for its analysis.
+    For conversational tools (chat_response), skips plan/confirmation entirely.
     """
     # ── Conversational fast path ──────────────────────────────────────
     if tool_def.is_conversational:
@@ -112,6 +114,15 @@ def execute(tool_call: ToolCall, tool_def: ToolDefinition) -> None:
                 padding=(1, 2),
             )
         )
+        # ── Two-pass interpretation ───────────────────────────────────────
+        # If this tool is marked interpretable and we have the user's original
+        # question, stream an LLM analysis of the output below the raw panel.
+        if tool_def.is_interpretable and original_query and output:
+            interpret_output(
+                original_query=original_query,
+                tool_name=tool_call.tool,
+                tool_output=output,
+            )
     else:
         console.print(
             Panel(

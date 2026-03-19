@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 from tex.tools.registry import ToolCall
-from tex.tools import packages, file_ops, processes, sysinfo, services
+from tex.tools import packages, file_ops, processes, sysinfo, services, network
 
 
 def dispatch(tool_call: ToolCall) -> tuple[bool, str]:
@@ -102,6 +102,25 @@ def dispatch(tool_call: ToolCall) -> tuple[bool, str]:
             return services.list_services(
                 filter=args.get("filter", ""),
                 state=args.get("state", ""),
+            )
+
+        case "analyze_boot":
+            return services.analyze_boot()
+
+        # ── Network ────────────────────────────────────────────────────
+        case "show_network_info":
+            return network.show_network_info()
+
+        case "ping_host":
+            return network.ping_host(
+                host=args["host"],
+                count=args.get("count", 4),
+            )
+
+        case "check_port":
+            return network.check_port(
+                host=args["host"],
+                port=args["port"],
             )
 
         # ── Conversation ───────────────────────────────────────────────

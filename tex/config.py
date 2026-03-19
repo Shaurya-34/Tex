@@ -4,7 +4,7 @@ import os
 from pathlib import Path
 from dotenv import load_dotenv
 
-# Load .env from project root (walk up from this file)
+
 _env_path = Path(__file__).parent.parent / ".env"
 load_dotenv(dotenv_path=_env_path)
 

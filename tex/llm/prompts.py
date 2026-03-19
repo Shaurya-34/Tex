@@ -88,6 +88,24 @@ User: show me all failed services
 User: what services are running
 → {"tool": "list_services", "arguments": {"state": "running"}, "explanation": "List all currently running systemd services.", "requires_sudo": false}
 
+User: why is my boot slow
+→ {"tool": "analyze_boot", "arguments": {}, "explanation": "Analyse boot time breakdown and identify slow-starting services.", "requires_sudo": false}
+
+User: how long does my system take to boot
+→ {"tool": "analyze_boot", "arguments": {}, "explanation": "Show boot time summary and per-service startup times.", "requires_sudo": false}
+
+User: show my network interfaces
+→ {"tool": "show_network_info", "arguments": {}, "explanation": "Show network interfaces, IPs, routes, DNS, and listening services.", "requires_sudo": false}
+
+User: what is my IP address
+→ {"tool": "show_network_info", "arguments": {}, "explanation": "Show network interfaces and IP addresses.", "requires_sudo": false}
+
+User: ping google.com
+→ {"tool": "ping_host", "arguments": {"host": "google.com", "count": 4}, "explanation": "Ping google.com to test connectivity and measure latency.", "requires_sudo": false}
+
+User: is port 8080 open on localhost
+→ {"tool": "check_port", "arguments": {"host": "localhost", "port": 8080}, "explanation": "Check whether TCP port 8080 is open on localhost.", "requires_sudo": false}
+
 Remember: ONLY JSON. No other text before or after.
 
 
@@ -103,3 +121,30 @@ Be concise but thorough. Don't pad answers unnecessarily.
 
 def build_user_message(user_input: str) -> str:
     return user_input.strip()
+
+
+# ── Two-pass interpretation prompt ────────────────────────────────────────────
+
+INTERPRET_SYSTEM_PROMPT = """You are Tex, a knowledgeable Linux assistant.
+
+You have just run a diagnostic tool on behalf of the user and retrieved raw system data.
+Your job is to INTERPRET that data in direct response to the user's original question.
+
+Rules:
+- Be specific. Reference actual values, service names, and process names from the data.
+- Be actionable. If there is a problem, suggest a concrete fix.
+- Be concise. Don't pad or repeat the raw data back verbatim.
+- Use markdown: bold key findings, use code blocks for commands.
+- If the data is healthy and there's nothing concerning, say so clearly.
+"""
+
+
+def build_interpret_message(original_query: str, tool_name: str, tool_output: str) -> str:
+    """Build the user message for the second-pass interpretation call."""
+    return (
+        f"My original question was: \"{original_query}\"\n\n"
+        f"Tool used: {tool_name}\n"
+        f"Raw output:\n"
+        f"```\n{tool_output[:3000]}\n```\n\n"  # cap at 3000 chars to stay within context
+        f"Please interpret this data and directly answer my question."
+    )

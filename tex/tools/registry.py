@@ -29,6 +29,7 @@ class ToolDefinition(BaseModel):
     destructive: bool = False      # extra confirmation prompt
     needs_sudo: bool = False
     is_conversational: bool = False  # no plan panel, no confirmation
+    is_interpretable: bool = False   # pass output back to LLM for analysis
 
 
 TOOL_REGISTRY: dict[str, ToolDefinition] = {
@@ -89,6 +90,7 @@ TOOL_REGISTRY: dict[str, ToolDefinition] = {
         description="Show running processes, optionally filtered by name",
         parameters=[],
         optional=["filter"],
+        is_interpretable=True,
     ),
     "kill_process": ToolDefinition(
         name="kill_process",
@@ -104,6 +106,7 @@ TOOL_REGISTRY: dict[str, ToolDefinition] = {
         description="Read systemd journal logs",
         parameters=[],
         optional=["unit", "lines", "since"],
+        is_interpretable=True,
     ),
 
     # Education
@@ -126,12 +129,14 @@ TOOL_REGISTRY: dict[str, ToolDefinition] = {
         name="get_system_info",
         description="Get a snapshot of the system CPU, GPU, RAM, Disk, OS",
         parameters=[],
+        is_interpretable=True,
     ),
     "list_installed_packages": ToolDefinition(
         name="list_installed_packages",
         description="List installed packages via dnf, optionally filtered by name",
         parameters=[],
         optional=["filter"],
+        is_interpretable=True,
     ),
 
     # Service management
@@ -139,6 +144,7 @@ TOOL_REGISTRY: dict[str, ToolDefinition] = {
         name="service_status",
         description="Show the status of a systemd service (active, inactive, failed, logs)",
         parameters=["name"],
+        is_interpretable=True,
     ),
     "start_service": ToolDefinition(
         name="start_service",
@@ -178,6 +184,32 @@ TOOL_REGISTRY: dict[str, ToolDefinition] = {
         description="List systemd services, optionally filtered by name or state (running/stopped/enabled/failed)",
         parameters=[],
         optional=["filter", "state"],
+        is_interpretable=True,
+    ),
+    "analyze_boot": ToolDefinition(
+        name="analyze_boot",
+        description="Show system boot time breakdown and per-service startup times using systemd-analyze",
+        parameters=[],
+        is_interpretable=True,
+    ),
+
+    # Network tools
+    "show_network_info": ToolDefinition(
+        name="show_network_info",
+        description="Show network interfaces, IP addresses, default route, DNS nameservers, and listening TCP services",
+        parameters=[],
+        is_interpretable=True,
+    ),
+    "ping_host": ToolDefinition(
+        name="ping_host",
+        description="Ping a hostname or IP and return latency statistics",
+        parameters=["host"],
+        optional=["count"],
+    ),
+    "check_port": ToolDefinition(
+        name="check_port",
+        description="Check whether a TCP port is open on a host",
+        parameters=["host", "port"],
     ),
 }
     
