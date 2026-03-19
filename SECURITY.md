@@ -180,27 +180,134 @@ directly in `validator.py` if needed.
 
 
 ---
-
-## Summary Table
-
-| # | File | Vulnerability | Fix |
-|---|---|---|---|
-| 1a | `file_ops.py` | Path traversal, no boundary check | `_safe_path()` enforces home directory containment via `Path.is_relative_to()` |
-| 1b | `file_ops.py` | `rmtree` on top-level home dirs | Depth-of-2 minimum before directory deletion |
-| 1c | `file_ops.py` | Unbounded `read_file` line count | Capped at 500 lines |
-| 1d | `file_ops.py` | `startswith()` string matching for blocked prefixes | Replaced with `Path.is_relative_to()`; non-standard homes skip the check |
-| 2a | `processes.py` | No PID lower bound, could kill PID 1 | Reject PIDs in system range 1–99 |
-| 2b | `processes.py` | PID 0 and negatives had misleading error message | Separate guard with OS-semantics explanation |
-| 3 | `dispatcher.py` | No default case, returns `None` on miss | `case _:` returns safe error tuple |
-| 4 | `validator.py` | Hardcoded flat 1024-char cap broke chat responses | Configurable via `TEX_MAX_ARG_LEN`; content args get 16x base limit |
-
----
-
-## What was NOT changed
-
-- The tool whitelist itself (`registry.py`) was not modified — it is already
-  the primary line of defence and was correct.
-- The LLM client (`client.py`) was not modified — it handles transport only.
-- The executor (`executor.py`) was not modified — confirmation flow is correct.
-- No tool implementations were removed or restricted beyond what is documented
-  above.
+ 
+ ## Vulnerability 5 — Potential Command Injection via Unvalidated Hostnames
+ 
+ **File:** `tex/tools/network.py`
+ **Severity:** High
+ **Status:** Fixed
+ 
+ ### What the vulnerability was
+ 
+ The `ping_host` and `check_port` tools accepted a `host` argument from the LLM and 
+ passed it to `subprocess.run(["ping", "-c", "1", host])` or `socket.gethostbyname(host)`. 
+ Although a basic separator check (semicolons, pipes) was present in the validator, 
+ it wasn't consistently applied to all network entry points, potentially allowing 
+ shell meta-characters to be passed if the model bypasses the initial guard.
+ 
+ ### Fix applied
+ 
+ A centralized `_validate_host()` gate was added to all network tools. It enforces 
+ a strict character whitelist (alphanumeric, dots, hyphens) and rejects any 
+ hostname containing shell-sensitive characters like `;`, `&`, `|`, `` ` ``, `$`, 
+ or spaces. Hostnames are also capped at 253 characters (DNS limit).
+ 
+ ---
+ 
+ ## Vulnerability 6 — Potential Command Injection via Unvalidated Service Names
+ 
+ **File:** `tex/tools/services.py`
+ **Severity:** High
+ **Status:** Fixed
+ 
+ ### What the vulnerability was
+ 
+ All six mutating service tools (`start`, `stop`, `restart`, `enable`, `disable`, 
+ `status`) passed the `name` argument directly to `systemctl`. While service 
+ names are usually predictable strings, a malicious model could output a service 
+ name containing a shell injection: `nginx; rm -rf /`.
+ 
+ ### Fix applied
+ 
+ A `_validate_service_name()` gate was added to all service management functions. 
+ It restricts service names to common valid characters (`a-zA-Z0-0`, `-`, `.`, `@`) 
+ and rejects any shell meta-characters. 
+ 
+ ---
+ 
+ ## Vulnerability 7 — Logic Bypass via Leading/Trailing Whitespace
+ 
+ **File:** `tex/tools/network.py`, `tex/tools/services.py`
+ **Severity:** Medium
+ **Status:** Fixed
+ 
+ ### What the vulnerability was
+ 
+ Validators for hostnames and service names were checking the input string 
+ but not returning the cleaned value. If a model provided `" nginx"`, 
+ the validator might pass it (depending on regex strictness), but the 
+ literal string `" nginx"` would then be passed to `subprocess.run()`. 
+ In some shell environments or CLI tools, leading whitespace can be used 
+ to bypass certain filters or logging.
+ 
+ ### Fix applied
+ 
+ `.strip()` was added to the beginning of all public functions in `network.py` 
+ and `services.py`. The input is cleaned before being passed to both 
+ the validator and the implementation.
+ 
+ ---
+ 
+ ## Vulnerability 8 — File Handle Leak in `resolv.conf`
+ 
+ **File:** `tex/tools/network.py`
+ **Severity:** Low (Resource exhaustion)
+ **Status:** Fixed
+ 
+ ### What the vulnerability was
+ 
+ `show_network_info` was reading `/etc/resolv.conf` using `open(path).read()`. 
+ If the read failed (e.g. Permission Error), the file handle could remain 
+ open until the process terminated.
+ 
+ ### Fix applied
+ 
+ Replaced with a `with open(...) as f:` context manager to ensure the 
+ handle is closed immediately regardless of errors.
+ 
+ ---
+ 
+ ## Vulnerability 9 — Information Disclosure via Incorrect Package Header Filtering
+ 
+ **File:** `tex/tools/sysinfo.py`
+ **Severity:** Low (Usability/Data loss)
+ **Status:** Fixed
+ 
+ ### What the vulnerability was
+ 
+ `list_installed_packages` used broad string matching (`startswith("Installed")`) 
+ to strip package manager headers. This would accidentally filter out 
+ actual packages starting with those words (e.g. a Python package named "InstalledStuff").
+ 
+ ### Fix applied
+ 
+ The header detection was moved to token-based exact matches for the specific 
+ header lines, ensuring that only metadata is stripped and actual package 
+ information is preserved.
+ 
+ ---
+ 
+ ## Summary Table (Updated)
+ 
+ | # | File | Vulnerability | Fix |
+ |---|---|---|---|
+ | 1a | `file_ops.py` | Path traversal, no boundary check | `_safe_path()` enforces home directory containment |
+ | 1b | `file_ops.py` | `rmtree` on top-level home dirs | Depth-of-2 minimum before directory deletion |
+ | 1c | `file_ops.py` | Unbounded `read_file` line count | Capped at 500 lines |
+ | 1d | `file_ops.py` | `startswith()` string matching for paths | Replaced with `Path.is_relative_to()` |
+ | 2a | `processes.py` | No PID lower bound, could kill PID 1 | Reject PIDs in system range 1–99 |
+ | 3 | `dispatcher.py` | No default case, returns `None` on miss | `case _:` returns safe error tuple |
+ | 4 | `validator.py` | Hardcoded flat 1024-char cap | Configurable via `TEX_MAX_ARG_LEN` |
+ | 5 | `network.py` | Unvalidated hostname injection | `_validate_host()` whitelist gate |
+ | 6 | `services.py` | Unvalidated service name injection | `_validate_service_name()` whitelist gate |
+ | 7 | `various` | Whitespace-based filter bypass | Mandatory `.strip()` on user inputs |
+ | 8 | `network.py` | File handle leak | Mandatory context managers (`with open`) |
+ | 9 | `sysinfo.py` | Data loss in package filtering | Token-exact header matching |
+ 
+ ---
+ 
+ ## What was NOT changed
+ 
+ - The tool whitelist itself (`registry.py`) was not modified — it remains correct.
+ - The core execution confirmation flow is unchanged.
+ - The logger is still active and logging all actions to `/logs/tex.log`.
