@@ -269,11 +269,27 @@ def interpret_output(original_query: str, tool_name: str, tool_output: str) -> N
                     )
                 )
         except Exception as e:
-            # Interpretation is best-effort — never crash the main flow
-            live.update(Panel(f"[dim](interpretation unavailable: {e})[/dim]",
-                              title="[bold cyan]Tex says[/bold cyan]",
-                              border_style="cyan", padding=(1, 2)))
-            return
+            # Store the error — do NOT call live.update() here.
+            # With transient=True, the Live context clears everything on exit,
+            # so any live.update() made just before returning would be wiped
+            # before the user sees it. Print the error outside the Live block.
+            error_msg = str(e)
+        else:
+            error_msg = None
+
+    # Live context has now fully exited — safe to print persistently
+
+    if error_msg is not None:
+        console.print(
+            Panel(
+                f"[dim](interpretation unavailable: {error_msg})[/dim]",
+                title="[bold cyan]Tex says[/bold cyan]",
+                border_style="cyan",
+                padding=(1, 2),
+            )
+        )
+        console.print()
+        return
 
     # Print final panel permanently
     if full_response:

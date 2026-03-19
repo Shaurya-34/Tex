@@ -125,8 +125,9 @@ def list_installed_packages(filter: str = "") -> tuple[bool, str]:
             lines = result.stdout.splitlines()
             if filter:
                 lines = [l for l in lines if filter.lower() in l.lower()]
-            # Skip the header line ("Installed Packages")
-            lines = [l for l in lines if not l.startswith("Installed")]
+            # Skip the header line ("Installed Packages") — exact match to avoid
+            # dropping RPM package names that happen to start with "Installed"
+            lines = [l for l in lines if l.strip() != "Installed Packages"]
             if lines:
                 found_anything = True
                 sections.append(f"[dnf/RPM] ({len(lines)} match(es))")
@@ -158,19 +159,18 @@ def list_installed_packages(filter: str = "") -> tuple[bool, str]:
             if filter:
                 lines = [l for l in lines if filter.lower() in l.lower()]
             # Skip header
-            lines = [l for l in lines if not l.startswith("Name")]
+            lines = [l for l in lines if not (l.strip().split(None, 1)[0:1] == ["Name"])]
             if lines:
                 found_anything = True
                 sections.append(f"\n[Snap] ({len(lines)} match(es))")
                 sections.extend(f"  {l}" for l in lines[:40])
 
-    # ── 4. AppImage ──────────────────────────────────────────────────────
-    # Note: /opt is intentionally excluded here — it is scanned separately
-    # in section 5 (manual installs). Including it in both would produce
-    # duplicate entries for AppImages stored in /opt.
+    # AppImage scanner covers common locations including /opt.
+    # /opt is also scanned separately in section 5 for non-AppImage manual installs.
     appimage_dirs = [
         Path.home() / "Applications",
         Path.home(),
+        Path("/opt"),
     ]
     appimages: list[str] = []
     for d in appimage_dirs:
@@ -195,7 +195,7 @@ def list_installed_packages(filter: str = "") -> tuple[bool, str]:
             opt_entries = [
                 e.name for e in opt.iterdir()
                 if (not filter or filter.lower() in e.name.lower())
-                and not e.suffix.lower() == ".appimage"  # already shown in AppImage section
+                and e.suffix.lower() != ".appimage"  # shown in AppImage section above
             ]
         except PermissionError:
             opt_entries = []

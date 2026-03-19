@@ -58,6 +58,7 @@ def _run_systemctl(*args: str) -> tuple[bool, str]:
 
 def service_status(name: str) -> tuple[bool, str]:
     """Show the status of a systemd service."""
+    name = name.strip()
     if err := _validate_service_name(name):
         return err
     ok, output = _run_systemctl("status", name, "--no-pager", "-l")
@@ -67,6 +68,7 @@ def service_status(name: str) -> tuple[bool, str]:
 
 def start_service(name: str) -> tuple[bool, str]:
     """Start a systemd service."""
+    name = name.strip()
     if err := _validate_service_name(name):
         return err
     ok, output = _run_systemctl("start", name)
@@ -77,6 +79,7 @@ def start_service(name: str) -> tuple[bool, str]:
 
 def stop_service(name: str) -> tuple[bool, str]:
     """Stop a running systemd service."""
+    name = name.strip()
     if err := _validate_service_name(name):
         return err
     ok, output = _run_systemctl("stop", name)
@@ -87,6 +90,7 @@ def stop_service(name: str) -> tuple[bool, str]:
 
 def restart_service(name: str) -> tuple[bool, str]:
     """Restart a systemd service (stop then start)."""
+    name = name.strip()
     if err := _validate_service_name(name):
         return err
     ok, output = _run_systemctl("restart", name)
@@ -97,6 +101,7 @@ def restart_service(name: str) -> tuple[bool, str]:
 
 def enable_service(name: str) -> tuple[bool, str]:
     """Enable a service to start automatically on boot."""
+    name = name.strip()
     if err := _validate_service_name(name):
         return err
     ok, output = _run_systemctl("enable", name)
@@ -107,6 +112,7 @@ def enable_service(name: str) -> tuple[bool, str]:
 
 def disable_service(name: str) -> tuple[bool, str]:
     """Disable a service so it does not start on boot."""
+    name = name.strip()
     if err := _validate_service_name(name):
         return err
     ok, output = _run_systemctl("disable", name)

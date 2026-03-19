@@ -41,7 +41,8 @@ def show_network_info() -> tuple[bool, str]:
 
     # DNS resolvers (nameserver lines from resolv.conf)
     try:
-        resolv = open("/etc/resolv.conf").read()
+        with open("/etc/resolv.conf") as f:
+            resolv = f.read()
         ns_lines = [l for l in resolv.splitlines() if l.startswith("nameserver")]
         if ns_lines:
             sections.append("DNS nameservers:\n" + "\n".join(ns_lines))
@@ -67,6 +68,7 @@ def ping_host(host: str, count: int | str = 4) -> tuple[bool, str]:
         host:  Hostname or IP address to ping.
         count: Number of ICMP packets to send (1–10, default 4).
     """
+    host = host.strip()
     err = _validate_host(host)
     if err is not None:
         return err
@@ -100,6 +102,7 @@ def check_port(host: str, port: int | str) -> tuple[bool, str]:
         host: Hostname or IP address.
         port: TCP port number (1–65535).
     """
+    host = host.strip()
     err = _validate_host(host)
     if err is not None:
         return err
